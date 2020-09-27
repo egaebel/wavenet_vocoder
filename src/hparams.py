@@ -7,7 +7,6 @@ import numpy as np
 # Default hyperparameters:
 hparams = HParams(
     name="wavenet_vocoder",
-
     # Input type:
     # 1. raw [-1, 1]
     # 2. mulaw [-1, 1]
@@ -19,7 +18,6 @@ hparams = HParams(
     # re-run preprocessing before training.
     input_type="raw",
     quantize_channels=65536,  # 65536 or 256
-
     # Audio:
     # time-domain pre/post-processing
     # e.g., preemphasis/inv_preemphasis
@@ -28,7 +26,6 @@ hparams = HParams(
     postprocess="",
     # waveform domain scaling
     global_gain_scale=1.0,
-
     sample_rate=22050,
     # this is only valid for mulaw is True
     silence_threshold=2,
@@ -42,15 +39,12 @@ hparams = HParams(
     win_length=1024,
     win_length_ms=-1.0,
     window="hann",
-
     # DC removal
     highpass_cutoff=70.0,
-
     # Parametric output distribution type for scalar input
     # 1) Logistic or 2) Normal
     output_distribution="Logistic",
     log_scale_min=-16.0,
-
     # Model:
     # This should equal to `quantize_channels` if mu-law quantize enabled
     # otherwise num_mixture * 3 (pi, mean, log_scale)
@@ -63,7 +57,6 @@ hparams = HParams(
     skip_out_channels=128,
     dropout=0.0,
     kernel_size=3,
-
     # Local conditioning (set negative value to disable))
     cin_channels=80,
     cin_pad=2,
@@ -74,47 +67,33 @@ hparams = HParams(
     upsample_params={
         "upsample_scales": [4, 4, 4, 4],  # should np.prod(upsample_scales) == hop_size
     },
-
     # Global conditioning (set negative value to disable)
     # currently limited for speaker embedding
     # this should only be enabled for multi-speaker dataset
     gin_channels=-1,  # i.e., speaker embedding dim
     n_speakers=7,  # 7 for CMU ARCTIC
-
     # Data loader
     pin_memory=True,
-    num_workers=2,
-
+    num_workers=8,
     # Loss
-
     # Training:
     batch_size=8,
     optimizer="Adam",
-    optimizer_params={
-        "lr": 1e-3,
-        "eps": 1e-8,
-        "weight_decay": 0.0,
-    },
-
+    optimizer_params={"lr": 1e-3, "eps": 1e-8, "weight_decay": 0.0,},
     # see lrschedule.py for available lr_schedule
     lr_schedule="step_learning_rate_decay",
     lr_schedule_kwargs={"anneal_rate": 0.5, "anneal_interval": 200000},
-
     max_train_steps=1000000,
     nepochs=2000,
-
     clip_thresh=-1,
-
     # max time steps can either be specified as sec or steps
     # if both are None, then full audio samples are used in a batch
     max_time_sec=None,
     max_time_steps=10240,  # 256 * 40
-
     # Hold moving averaged parameters and use them for evaluation
     exponential_moving_average=True,
     # averaged = decay * averaged + (1 - decay) * x
     ema_decay=0.9999,
-
     # Save
     # per-step intervals
     checkpoint_interval=100000,
@@ -122,12 +101,12 @@ hparams = HParams(
     # per-epoch interval
     test_eval_epoch_interval=50,
     save_optimizer_state=True,
-
     # Eval:
+    use_torch_stft=False,
 )
 
 
 def hparams_debug_string():
     values = hparams.values()
-    hp = ['  %s: %s' % (name, values[name]) for name in sorted(values)]
-    return 'Hyperparameters:\n' + '\n'.join(hp)
+    hp = ["  %s: %s" % (name, values[name]) for name in sorted(values)]
+    return "Hyperparameters:\n" + "\n".join(hp)

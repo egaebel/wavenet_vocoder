@@ -39,8 +39,9 @@ def _expand_global_features(B, T, g, bct=True):
         return g_btc.contiguous()
 
 
-def receptive_field_size(total_layers, num_cycles, kernel_size,
-                         dilation=lambda x: 2**x):
+def receptive_field_size(
+    total_layers, num_cycles, kernel_size, dilation=lambda x: 2 ** x
+):
     """Compute receptive field size
 
     Args:
@@ -95,20 +96,27 @@ class WaveNet(nn.Module):
           directly.
     """
 
-    def __init__(self, out_channels=256, layers=20, stacks=2,
-                 residual_channels=512,
-                 gate_channels=512,
-                 skip_out_channels=512,
-                 kernel_size=3, dropout=1 - 0.95,
-                 cin_channels=-1, gin_channels=-1, n_speakers=None,
-                 upsample_conditional_features=False,
-                 upsample_net="ConvInUpsampleNetwork",
-                 upsample_params={"upsample_scales": [4, 4, 4, 4]},
-                 scalar_input=False,
-                 use_speaker_embedding=False,
-                 output_distribution="Logistic",
-                 cin_pad=0,
-                 ):
+    def __init__(
+        self,
+        out_channels=256,
+        layers=20,
+        stacks=2,
+        residual_channels=512,
+        gate_channels=512,
+        skip_out_channels=512,
+        kernel_size=3,
+        dropout=1 - 0.95,
+        cin_channels=-1,
+        gin_channels=-1,
+        n_speakers=None,
+        upsample_conditional_features=False,
+        upsample_net="ConvInUpsampleNetwork",
+        upsample_params={"upsample_scales": [4, 4, 4, 4]},
+        scalar_input=False,
+        use_speaker_embedding=False,
+        output_distribution="Logistic",
+        cin_pad=0,
+    ):
         super(WaveNet, self).__init__()
         self.scalar_input = scalar_input
         self.out_channels = out_channels
@@ -123,27 +131,33 @@ class WaveNet(nn.Module):
 
         self.conv_layers = nn.ModuleList()
         for layer in range(layers):
-            dilation = 2**(layer % layers_per_stack)
+            dilation = 2 ** (layer % layers_per_stack)
             conv = ResidualConv1dGLU(
-                residual_channels, gate_channels,
+                residual_channels,
+                gate_channels,
                 kernel_size=kernel_size,
                 skip_out_channels=skip_out_channels,
                 bias=True,  # magenda uses bias, but musyoku doesn't
-                dilation=dilation, dropout=dropout,
+                dilation=dilation,
+                dropout=dropout,
                 cin_channels=cin_channels,
-                gin_channels=gin_channels)
+                gin_channels=gin_channels,
+            )
             self.conv_layers.append(conv)
-        self.last_conv_layers = nn.ModuleList([
-            nn.ReLU(inplace=True),
-            Conv1d1x1(skip_out_channels, skip_out_channels),
-            nn.ReLU(inplace=True),
-            Conv1d1x1(skip_out_channels, out_channels),
-        ])
+        self.last_conv_layers = nn.ModuleList(
+            [
+                nn.ReLU(inplace=True),
+                Conv1d1x1(skip_out_channels, skip_out_channels),
+                nn.ReLU(inplace=True),
+                Conv1d1x1(skip_out_channels, out_channels),
+            ]
+        )
 
         if gin_channels > 0 and use_speaker_embedding:
             assert n_speakers is not None
             self.embed_speakers = Embedding(
-                n_speakers, gin_channels, padding_idx=None, std=0.1)
+                n_speakers, gin_channels, padding_idx=None, std=0.1
+            )
         else:
             self.embed_speakers = None
 
@@ -212,10 +226,18 @@ class WaveNet(nn.Module):
 
         return x
 
-    def incremental_forward(self, initial_input=None, c=None, g=None,
-                            T=100, test_inputs=None,
-                            tqdm=lambda x: x, softmax=True, quantize=True,
-                            log_scale_min=-50.0):
+    def incremental_forward(
+        self,
+        initial_input=None,
+        c=None,
+        g=None,
+        T=100,
+        test_inputs=None,
+        tqdm=lambda x: x,
+        softmax=True,
+        quantize=True,
+        log_scale_min=-50.0,
+    ):
         """Incremental forward step
 
         Due to linearized convolutions, inputs of shape (B x C x T) are reshaped
@@ -272,8 +294,16 @@ class WaveNet(nn.Module):
         if c is not None:
             B = c.shape[0]
             if self.upsample_net is not None:
+                print(
+                    "prior to upsample: c.size(-1): '%s' T: '%s'"
+                    % (str(c.size(-1)), str(T),),
+                    flush=True,
+                )
                 c = self.upsample_net(c)
-                assert c.size(-1) == T
+                assert c.size(-1) == T, "c.size(-1): '%s' != T: '%s'" % (
+                    str(c.size(-1)),
+                    str(T),
+                )
             if c.size(-1) == T:
                 c = c.transpose(1, 2).contiguous()
 
@@ -322,10 +352,12 @@ class WaveNet(nn.Module):
             if self.scalar_input:
                 if self.output_distribution == "Logistic":
                     x = sample_from_discretized_mix_logistic(
-                        x.view(B, -1, 1), log_scale_min=log_scale_min)
+                        x.view(B, -1, 1), log_scale_min=log_scale_min
+                    )
                 elif self.output_distribution == "Normal":
                     x = sample_from_mix_gaussian(
-                        x.view(B, -1, 1), log_scale_min=log_scale_min)
+                        x.view(B, -1, 1), log_scale_min=log_scale_min
+                    )
                 else:
                     assert False
             else:
@@ -358,4 +390,5 @@ class WaveNet(nn.Module):
                 nn.utils.remove_weight_norm(m)
             except ValueError:  # this module didn't have weight norm
                 return
+
         self.apply(remove_weight_norm)

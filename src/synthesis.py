@@ -41,6 +41,7 @@ device = torch.device("cuda" if use_cuda else "cpu")
 
 def batch_wavegen(model, c=None, g=None, fast=True, tqdm=tqdm):
     from train import sanity_check
+
     sanity_check(model, c, g)
     assert c is not None
     B = c.shape[0]
@@ -60,8 +61,14 @@ def batch_wavegen(model, c=None, g=None, fast=True, tqdm=tqdm):
 
     with torch.no_grad():
         y_hat = model.incremental_forward(
-            c=c, g=g, T=length, tqdm=tqdm, softmax=True, quantize=True,
-            log_scale_min=hparams.log_scale_min)
+            c=c,
+            g=g,
+            T=length,
+            tqdm=tqdm,
+            softmax=True,
+            quantize=True,
+            log_scale_min=hparams.log_scale_min,
+        )
 
     if is_mulaw_quantize(hparams.input_type):
         # needs to be float since mulaw_inv returns in range of [-1, 1]
@@ -98,8 +105,9 @@ def _to_numpy(x):
     return x.numpy()
 
 
-def wavegen(model, length=None, c=None, g=None, initial_value=None,
-            fast=False, tqdm=tqdm):
+def wavegen(
+    model, length=None, c=None, g=None, initial_value=None, fast=False, tqdm=tqdm
+):
     """Generate waveform samples by WaveNet.
 
     Args:
@@ -116,10 +124,13 @@ def wavegen(model, length=None, c=None, g=None, initial_value=None,
         numpy.ndarray : Generated waveform samples
     """
     from train import sanity_check
+
     sanity_check(model, c, g)
 
+    print("c: '%s'" % str(c.size()), flush=True)
     c = _to_numpy(c)
     g = _to_numpy(g)
+    print("c after _to_numpy: '%s'" % str(c.size), flush=True)
 
     model.eval()
     if fast:
@@ -131,19 +142,46 @@ def wavegen(model, length=None, c=None, g=None, initial_value=None,
         # (Tc, D)
         if c.ndim != 2:
             raise RuntimeError(
-                "Expected 2-dim shape (T, {}) for the conditional feature, but {} was actually given.".format(hparams.cin_channels, c.shape))
+                "Expected 2-dim shape (T, {}) for the conditional feature, but {} was actually given.".format(
+                    hparams.cin_channels, c.shape
+                )
+            )
             assert c.ndim == 2
+        # TODO: Check this, trying to fix upsampling.....
+        """
         Tc = c.shape[0]
         upsample_factor = audio.get_hop_size()
         # Overwrite length according to feature size
         length = Tc * upsample_factor
+        print(
+            "Tc: '%s' upsample factor: '%s' length: '%s'"
+            % (str(Tc), str(upsample_factor), str(length)),
+            flush=True,
+        )
+        """
+        if hparams.upsample_conditional_features:
+            length = (c.shape[-1] - hparams.cin_pad * 2) * audio.get_hop_size()
+        else:
+            # already dupulicated
+            length = c.shape[-1]
+        print(
+            "length: '%s'" % str(length), flush=True,
+        )
+
         # (Tc, D) -> (Tc', D)
         # Repeat features before feeding it to the network
         if not hparams.upsample_conditional_features:
+            print("Repeating features.....", flush=True)
             c = np.repeat(c, upsample_factor, axis=0)
 
         # B x C x T
-        c = torch.FloatTensor(c.T).unsqueeze(0)
+        # TODO: make transpose configurable if this works.
+        # c = torch.FloatTensor(c.T).unsqueeze(0)
+        c = torch.FloatTensor(c).unsqueeze(0)
+
+    print(
+        "c after torch.FloatTensor(c.T).unsqueeze(0): '%s'" % str(c.size()), flush=True
+    )
 
     if initial_value is None:
         if is_mulaw_quantize(hparams.input_type):
@@ -154,9 +192,11 @@ def wavegen(model, length=None, c=None, g=None, initial_value=None,
     if is_mulaw_quantize(hparams.input_type):
         assert initial_value >= 0 and initial_value < hparams.quantize_channels
         initial_input = np_utils.to_categorical(
-            initial_value, num_classes=hparams.quantize_channels).astype(np.float32)
+            initial_value, num_classes=hparams.quantize_channels
+        ).astype(np.float32)
         initial_input = torch.from_numpy(initial_input).view(
-            1, 1, hparams.quantize_channels)
+            1, 1, hparams.quantize_channels
+        )
     else:
         initial_input = torch.zeros(1, 1, 1).fill_(initial_value)
 
@@ -169,14 +209,23 @@ def wavegen(model, length=None, c=None, g=None, initial_value=None,
 
     with torch.no_grad():
         y_hat = model.incremental_forward(
-            initial_input, c=c, g=g, T=length, tqdm=tqdm, softmax=True, quantize=True,
-            log_scale_min=hparams.log_scale_min)
+            initial_input,
+            c=c,
+            g=g,
+            T=length,
+            tqdm=tqdm,
+            softmax=True,
+            quantize=True,
+            log_scale_min=hparams.log_scale_min,
+        )
 
     if is_mulaw_quantize(hparams.input_type):
         y_hat = y_hat.max(1)[1].view(-1).long().cpu().data.numpy()
         y_hat = P.inv_mulaw_quantize(y_hat, hparams.quantize_channels)
     elif is_mulaw(hparams.input_type):
-        y_hat = P.inv_mulaw(y_hat.view(-1).cpu().data.numpy(), hparams.quantize_channels)
+        y_hat = P.inv_mulaw(
+            y_hat.view(-1).cpu().data.numpy(), hparams.quantize_channels
+        )
     else:
         y_hat = y_hat.view(-1).cpu().data.numpy()
 
@@ -232,7 +281,9 @@ if __name__ == "__main__":
     if use_cuda:
         checkpoint = torch.load(checkpoint_path)
     else:
-        checkpoint = torch.load(checkpoint_path, map_location=lambda storage, loc: storage)
+        checkpoint = torch.load(
+            checkpoint_path, map_location=lambda storage, loc: storage
+        )
     model.load_state_dict(checkpoint["state_dict"])
     checkpoint_name = splitext(basename(checkpoint_path))[0]
 
@@ -240,7 +291,9 @@ if __name__ == "__main__":
     dst_wav_path = join(dst_dir, "{}{}.wav".format(checkpoint_name, file_name_suffix))
 
     # DO generate
-    waveform = batch_wavegen(model, length, c=c, g=speaker_id, initial_value=initial_value, fast=True)
+    waveform = batch_wavegen(
+        model, length, c=c, g=speaker_id, initial_value=initial_value, fast=True
+    )
 
     # save
     librosa.output.write_wav(dst_wav_path, waveform, sr=hparams.sample_rate)

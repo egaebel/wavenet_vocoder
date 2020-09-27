@@ -21,20 +21,29 @@ from hparams import hparams
 
 def preprocess(mod, in_dir, out_root, num_workers):
     os.makedirs(out_dir, exist_ok=True)
-    metadata = mod.build_from_path(in_dir, out_dir, num_workers, tqdm=tqdm)
+    metadata = mod.build_from_path(
+        in_dir,
+        out_dir,
+        num_workers=num_workers,
+        sample_rate=hparams.sample_rate,
+        tqdm=tqdm,
+    )
     write_metadata(metadata, out_dir)
 
 
 def write_metadata(metadata, out_dir):
-    with open(os.path.join(out_dir, 'train.txt'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(out_dir, "train.txt"), "w", encoding="utf-8") as f:
         for m in metadata:
-            f.write('|'.join([str(x) for x in m]) + '\n')
+            f.write("|".join([str(x) for x in m]) + "\n")
     frames = sum([m[2] for m in metadata])
     sr = hparams.sample_rate
     hours = frames / sr / 3600
-    print('Wrote %d utterances, %d time steps (%.2f hours)' % (len(metadata), frames, hours))
-    print('Min frame length: %d' % min(m[2] for m in metadata))
-    print('Max frame length: %d' % max(m[2] for m in metadata))
+    print(
+        "Wrote %d utterances, %d time steps (%.2f hours)"
+        % (len(metadata), frames, hours)
+    )
+    print("Min frame length: %d" % min(m[2] for m in metadata))
+    print("Max frame length: %d" % max(m[2] for m in metadata))
 
 
 if __name__ == "__main__":
@@ -48,23 +57,35 @@ if __name__ == "__main__":
 
     # Load preset if specified
     if preset is not None:
+        hparams_json_string = ""
         with open(preset) as f:
-            hparams.parse_json(f.read())
+            for line in f:
+                if line.strip().startswith("//"):
+                    continue
+                hparams_json_string += line
+            hparams.parse_json(hparams_json_string)
     # Override hyper parameters
     hparams.parse(args["--hparams"])
     assert hparams.name == "wavenet_vocoder"
 
+    print("Using name: '%s'" % name)
     print("Sampling frequency: {}".format(hparams.sample_rate))
     if name in ["cmu_arctic", "jsut", "librivox"]:
-        print("""warn!: {} is no longer explicitly supported!
+        print(
+            """warn!: {} is no longer explicitly supported!
 
 Please use a generic dataest 'wavallin' instead.
-All you need to do is to put all wav files in a single directory.""".format(name))
+All you need to do is to put all wav files in a single directory.""".format(
+                name
+            )
+        )
         sys.exit(1)
 
     if name == "ljspeech":
-        print("""warn: ljspeech is deprecated!
-Please use a generic dataset 'wavallin' instead.""")
+        print(
+            """warn: ljspeech is deprecated!
+Please use a generic dataset 'wavallin' instead."""
+        )
         sys.exit(1)
 
     mod = importlib.import_module("datasets." + name)

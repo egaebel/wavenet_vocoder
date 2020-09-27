@@ -208,3 +208,17 @@ Temporary Items
 
 # Linux trash folder which might appear on any partition or disk
 .Trash-*
+/bin/
+/include/
+/man/
+/share/
+preprocessed-datasets
+/preprocessed-datasets
+/converted-wav-files
+/logs/
+/checkpoints/
+converted-wav-files
+logs/
+logs--first-run-bad-results
+/20180510_mixture_lj_checkpoint_step000320000_ema.pth/
+20180510_mixture_lj_checkpoint_step000320000_ema.pth
